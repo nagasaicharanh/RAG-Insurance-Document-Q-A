@@ -1,0 +1,13 @@
+langchain
+langchain-core
+langchain-community
+langchain-groq
+langchain-huggingface
+chromadb
+sentence-transformers
+pdfplumber
+PyMuPDF
+ragas
+deepeval
+streamlit
+python-dotenv
