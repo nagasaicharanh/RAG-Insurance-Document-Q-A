@@ -1,5 +1,6 @@
 import json
 import os
+import asyncio
 import config
 from rag_chain import get_rag_chain_with_sources
 
@@ -13,6 +14,26 @@ from langchain_huggingface import HuggingFaceEmbeddings
 # For DeepEval
 from deepeval.metrics import HallucinationMetric
 from deepeval.test_case import LLMTestCase
+from deepeval.models import DeepEvalBaseLLM
+
+class GroqModel(DeepEvalBaseLLM):
+    def __init__(self, model):
+        self.model = model
+
+    def load_model(self):
+        return self.model
+
+    def generate(self, prompt: str) -> str:
+        # This is not an async method
+        return self.model.invoke(prompt).content
+
+    async def a_generate(self, prompt: str) -> str:
+        # DeepEval uses async generation
+        res = await self.model.ainvoke(prompt)
+        return res.content
+
+    def get_model_name(self):
+        return f"Groq: {self.model.model_name}"
 
 def load_test_data():
     if not os.path.exists(config.TEST_QA_PATH):
@@ -21,7 +42,7 @@ def load_test_data():
     with open(config.TEST_QA_PATH, 'r') as f:
         return json.load(f)
 
-def run_evaluation():
+async def run_evaluation():
     test_data = load_test_data()
     if not test_data:
         return
@@ -40,7 +61,7 @@ def run_evaluation():
         q = item["question"]
         gt = item["answer"]
         questions.append(q)
-        ground_truths.append([gt])
+        ground_truths.append(gt) # Fix: RAGAS expects a list of strings
         
         print(f"Processing question: {q}")
         try:
@@ -84,14 +105,15 @@ def run_evaluation():
     # 2. DeepEval Hallucination Check (Offline)
     print("\n--- Running DeepEval Hallucination Check ---")
     try:
-        hallucination_metric = HallucinationMetric(threshold=0.5)
+        wrapped_model = GroqModel(llm)
+        hallucination_metric = HallucinationMetric(threshold=0.5, model=wrapped_model)
         for i in range(len(questions)):
             test_case = LLMTestCase(
                 input=questions[i],
                 actual_output=answers[i],
                 context=contexts[i]
             )
-            hallucination_metric.measure(test_case)
+            await hallucination_metric.a_measure(test_case)
             print(f"Q: {questions[i]}")
             print(f"Hallucination Score: {hallucination_metric.score}")
             print(f"Reason: {hallucination_metric.reason}")
@@ -103,4 +125,4 @@ if __name__ == "__main__":
         print("Please set GROQ_API_KEY in your .env file")
         exit(1)
         
-    run_evaluation()
+    asyncio.run(run_evaluation())

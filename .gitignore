@@ -1,0 +1,22 @@
+# Environments
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+
+# Vector Store
+chroma_db/
+
+# Evaluation
+.deepeval/
+
+# Data
+data/raw_pdfs/*.pdf
+!data/raw_pdfs/.gitkeep
